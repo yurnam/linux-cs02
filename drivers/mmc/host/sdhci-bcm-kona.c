@@ -181,6 +181,14 @@ static void sdhci_bcm_kona_init_74_clocks(struct sdhci_host *host,
  * full controller resets instead, then re-enable the IP interrupt and AHB
  * clock gate that the CORECTRL reset clears.  Partial CMD/DATA resets use
  * the standard SDHCI path since only the RESET_ALL (bit 0) is affected.
+ *
+ * The CORECTRL reset also clears CORESTAT, including the CD_SW (software
+ * card-detect) bit.  For non-removable devices (eMMC, WiFi SDIO) CD_SW must
+ * stay asserted so that CARD_PRESENT remains set in SDHCI_PRESENT_STATE.
+ * Without CARD_PRESENT the BCM21664 SDHCI3 controller will not drive CMD5
+ * on the bus, causing every SDIO probe to time out.  Restore CD_SW here
+ * after every full reset so that mmc_rescan() always sees the card as
+ * present.
  */
 static void sdhci_bcm_kona_reset(struct sdhci_host *host, u8 mask)
 {
@@ -189,6 +197,12 @@ static void sdhci_bcm_kona_reset(struct sdhci_host *host, u8 mask)
 		if (sdhci_bcm_kona_sd_reset(host))
 			return;
 		sdhci_bcm_kona_sd_init(host);
+		/*
+		 * Restore CD_SW for non-removable devices after the core reset
+		 * cleared CORESTAT.
+		 */
+		if (!mmc_card_is_removable(host->mmc))
+			sdhci_bcm_kona_sd_card_emulate(host, 1);
 	} else {
 		sdhci_reset(host, mask);
 	}
@@ -311,19 +325,32 @@ static int sdhci_bcm_kona_probe(struct platform_device *pdev)
 
 	sdhci_bcm_kona_sd_init(host);
 
+	/*
+	 * For non-removable devices (eMMC, WiFi SDIO) assert CD_SW in
+	 * CORESTAT *before* sdhci_add_host() so that CARD_PRESENT is
+	 * already set in the SDHCI PRESENT_STATE register when
+	 * mmc_start_host() schedules the first (and only) mmc_rescan().
+	 *
+	 * On the dual-core BCM21664 the mmc_rescan work item can be picked
+	 * up by the second CPU immediately after mmc_start_host() queues it,
+	 * before the probe thread reaches the post-sdhci_add_host() call
+	 * below.  Without CD_SW=1 the BCM21664 SDHCI3 controller sees
+	 * CARD_PRESENT=0 and does not drive CMD5, causing a timeout.  For
+	 * non-removable cards mmc_rescan() only runs once, so the WiFi
+	 * (BCM4330) SDIO device would never be enumerated.
+	 */
+	if (!mmc_card_is_removable(host->mmc)) {
+		ret = sdhci_bcm_kona_sd_card_emulate(host, 1);
+		if (ret) {
+			dev_err(dev, "unable to emulate card insertion\n");
+			goto err_clk_disable;
+		}
+	}
+
 	ret = sdhci_add_host(host);
 	if (ret)
 		goto err_reset;
 
-	/* if device is eMMC, emulate card insert right here */
-	if (!mmc_card_is_removable(host->mmc)) {
-		ret = sdhci_bcm_kona_sd_card_emulate(host, 1);
-		if (ret) {
-			dev_err(dev,
-				"unable to emulate card insertion\n");
-			goto err_remove_host;
-		}
-	}
 	/*
 	 * Since the card detection GPIO interrupt is configured to be
 	 * edge sensitive, check the initial GPIO value here, emulate
@@ -334,9 +361,6 @@ static int sdhci_bcm_kona_probe(struct platform_device *pdev)
 
 	dev_dbg(dev, "initialized properly\n");
 	return 0;
-
-err_remove_host:
-	sdhci_remove_host(host, 0);
 
 err_reset:
 	sdhci_bcm_kona_sd_reset(host);
