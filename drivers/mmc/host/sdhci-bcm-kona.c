@@ -173,13 +173,48 @@ static void sdhci_bcm_kona_init_74_clocks(struct sdhci_host *host,
 		udelay(740);
 }
 
+/*
+ * The BCM21664 kona SDHCI does not clear the SDHCI_RESET_ALL bit in the
+ * standard SDHCI_SOFTWARE_RESET register within the 100 ms timeout, which
+ * causes spurious "Reset 0x1 never completed" errors and leaves the host in
+ * an undefined state.  Use the kona-specific top-level CORECTRL reset for
+ * full controller resets instead, then re-enable the IP interrupt and AHB
+ * clock gate that the CORECTRL reset clears.  Partial CMD/DATA resets use
+ * the standard SDHCI path since only the RESET_ALL (bit 0) is affected.
+ *
+ * The CORECTRL reset also clears CORESTAT, including the CD_SW (software
+ * card-detect) bit.  For non-removable devices (eMMC, WiFi SDIO) CD_SW must
+ * stay asserted so that CARD_PRESENT remains set in SDHCI_PRESENT_STATE.
+ * Without CARD_PRESENT the BCM21664 SDHCI3 controller will not drive CMD5
+ * on the bus, causing every SDIO probe to time out.  Restore CD_SW here
+ * after every full reset so that mmc_rescan() always sees the card as
+ * present.
+ */
+static void sdhci_bcm_kona_reset(struct sdhci_host *host, u8 mask)
+{
+	if (mask & SDHCI_RESET_ALL) {
+		/* Non-zero return means the kona reset failed; abort. */
+		if (sdhci_bcm_kona_sd_reset(host))
+			return;
+		sdhci_bcm_kona_sd_init(host);
+		/*
+		 * Restore CD_SW for non-removable devices after the core reset
+		 * cleared CORESTAT.
+		 */
+		if (!mmc_card_is_removable(host->mmc))
+			sdhci_bcm_kona_sd_card_emulate(host, 1);
+	} else {
+		sdhci_reset(host, mask);
+	}
+}
+
 static const struct sdhci_ops sdhci_bcm_kona_ops = {
 	.set_clock = sdhci_set_clock,
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
 	.get_timeout_clock = sdhci_pltfm_clk_get_max_clock,
 	.platform_send_init_74_clocks = sdhci_bcm_kona_init_74_clocks,
 	.set_bus_width = sdhci_set_bus_width,
-	.reset = sdhci_reset,
+	.reset = sdhci_bcm_kona_reset,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
 	.card_event = sdhci_bcm_kona_card_event,
 };
@@ -192,6 +227,17 @@ static const struct sdhci_pltfm_data sdhci_pltfm_data_kona = {
 		SDHCI_QUIRK_FORCE_BLK_SZ_2048 |
 		SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN |
 		SDHCI_QUIRK_BROKEN_DMA | SDHCI_QUIRK_BROKEN_ADMA,
+	/*
+	 * Preset values in the SDHCI registers are unreliable on kona (the
+	 * clock base is already broken per SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN).
+	 * If preset values are used for UHS modes the clock divider and drive
+	 * strength fields are read as garbage, causing the clock register to
+	 * be programmed to 0x7 (no divisor), which stalls the bus and makes
+	 * every SDHCI timeout take the full hardware timeout interval (tens of
+	 * seconds), freezing the whole system.  Disable preset value usage so
+	 * the driver always programs the clock divider explicitly.
+	 */
+	.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
 };
 
 static const struct of_device_id sdhci_bcm_kona_of_match[] = {
@@ -226,6 +272,14 @@ static int sdhci_bcm_kona_probe(struct platform_device *pdev)
 	ret = mmc_of_parse(host->mmc);
 	if (ret)
 		goto err_pltfm_free;
+
+	/*
+	 * Read SDHCI-specific DT properties (e.g. no-1-8-v) and translate
+	 * them to SDHCI quirks.  mmc_of_parse() only sets MMC-level caps;
+	 * sdhci_get_property() is needed for SDHCI_QUIRK2_NO_1_8_V and
+	 * other SDHCI-layer quirks that are not parsed by the MMC core.
+	 */
+	sdhci_get_property(pdev);
 
 	if (!host->mmc->f_max) {
 		dev_err(&pdev->dev, "Missing max-freq for SDHCI cfg\n");
@@ -271,19 +325,32 @@ static int sdhci_bcm_kona_probe(struct platform_device *pdev)
 
 	sdhci_bcm_kona_sd_init(host);
 
+	/*
+	 * For non-removable devices (eMMC, WiFi SDIO) assert CD_SW in
+	 * CORESTAT *before* sdhci_add_host() so that CARD_PRESENT is
+	 * already set in the SDHCI PRESENT_STATE register when
+	 * mmc_start_host() schedules the first (and only) mmc_rescan().
+	 *
+	 * On the dual-core BCM21664 the mmc_rescan work item can be picked
+	 * up by the second CPU immediately after mmc_start_host() queues it,
+	 * before the probe thread reaches the post-sdhci_add_host() call
+	 * below.  Without CD_SW=1 the BCM21664 SDHCI3 controller sees
+	 * CARD_PRESENT=0 and does not drive CMD5, causing a timeout.  For
+	 * non-removable cards mmc_rescan() only runs once, so the WiFi
+	 * (BCM4330) SDIO device would never be enumerated.
+	 */
+	if (!mmc_card_is_removable(host->mmc)) {
+		ret = sdhci_bcm_kona_sd_card_emulate(host, 1);
+		if (ret) {
+			dev_err(dev, "unable to emulate card insertion\n");
+			goto err_clk_disable;
+		}
+	}
+
 	ret = sdhci_add_host(host);
 	if (ret)
 		goto err_reset;
 
-	/* if device is eMMC, emulate card insert right here */
-	if (!mmc_card_is_removable(host->mmc)) {
-		ret = sdhci_bcm_kona_sd_card_emulate(host, 1);
-		if (ret) {
-			dev_err(dev,
-				"unable to emulate card insertion\n");
-			goto err_remove_host;
-		}
-	}
 	/*
 	 * Since the card detection GPIO interrupt is configured to be
 	 * edge sensitive, check the initial GPIO value here, emulate
@@ -294,9 +361,6 @@ static int sdhci_bcm_kona_probe(struct platform_device *pdev)
 
 	dev_dbg(dev, "initialized properly\n");
 	return 0;
-
-err_remove_host:
-	sdhci_remove_host(host, 0);
 
 err_reset:
 	sdhci_bcm_kona_sd_reset(host);

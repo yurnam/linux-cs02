@@ -1278,8 +1278,16 @@ static int sd_read_ext_regs(struct mmc_card *card)
 	 */
 	err = sd_read_ext_reg(card, 0, 0, 0, 512, gen_info_buf);
 	if (err) {
-		pr_err("%s: error %d reading general info of SD ext reg\n",
+		/*
+		 * Some host controllers (e.g. BCM Kona) cannot complete the
+		 * CMD48 data transfer even when the card advertises CMD48
+		 * support in its SCR register.  The SD extension registers are
+		 * an optional SD 6.0 feature; treat a read failure as
+		 * non-fatal so basic card operation can continue.
+		 */
+		pr_warn("%s: error %d reading general info of SD ext reg, ignoring\n",
 			mmc_hostname(card->host), err);
+		err = 0;
 		goto out;
 	}
 

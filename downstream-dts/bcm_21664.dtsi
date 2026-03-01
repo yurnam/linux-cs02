@@ -116,9 +116,15 @@
 	};
 
 	gpio: gpio@35003000 {
-		compatible = "bcm,kona-gpio";
+		compatible = "brcm,bcm21664-gpio", "brcm,kona-gpio";
 		reg = <0x35003000 0x800>;
+		interrupts = <0 106 0x04>,
+			     <0 115 0x04>,
+			     <0 114 0x04>,
+			     <0 113 0x04>;
 		#gpio-cells = <2>;
+		#interrupt-cells = <2>;
 		gpio-controller;
+		interrupt-controller;
 	};
 };

@@ -16,6 +16,7 @@ properties:
     items:
       - enum:
           - brcm,bcm21664-garnet
+          - samsung,cs02
           - samsung,kylepro
           - samsung,kyleprods
       - const: brcm,bcm21664

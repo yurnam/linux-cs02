@@ -223,6 +223,16 @@
 		ahb-clk-name = "sdio3_ahb_clk";
 		sleep-clk-name = "sdio3_sleep_clk";
 		peri-clk-rate = <48000000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		brcmf: wifi@1 {
+			compatible = "brcm,bcm4330-fmac", "brcm,bcm4329-fmac";
+			reg = <1>;
+			interrupt-parent = <&gpio>;
+			interrupts = <74 2>;	/* GPIO74, IRQ_TYPE_EDGE_FALLING */
+			interrupt-names = "host-wake";
+		};
 	};
 
 	sdio0 {
