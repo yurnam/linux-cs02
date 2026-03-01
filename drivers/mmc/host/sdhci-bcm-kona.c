@@ -173,13 +173,34 @@ static void sdhci_bcm_kona_init_74_clocks(struct sdhci_host *host,
 		udelay(740);
 }
 
+/*
+ * The BCM21664 kona SDHCI does not clear the SDHCI_RESET_ALL bit in the
+ * standard SDHCI_SOFTWARE_RESET register within the 100 ms timeout, which
+ * causes spurious "Reset 0x1 never completed" errors and leaves the host in
+ * an undefined state.  Use the kona-specific top-level CORECTRL reset for
+ * full controller resets instead, then re-enable the IP interrupt and AHB
+ * clock gate that the CORECTRL reset clears.  Partial CMD/DATA resets use
+ * the standard SDHCI path since only the RESET_ALL (bit 0) is affected.
+ */
+static void sdhci_bcm_kona_reset(struct sdhci_host *host, u8 mask)
+{
+	if (mask & SDHCI_RESET_ALL) {
+		/* Non-zero return means the kona reset failed; abort. */
+		if (sdhci_bcm_kona_sd_reset(host))
+			return;
+		sdhci_bcm_kona_sd_init(host);
+	} else {
+		sdhci_reset(host, mask);
+	}
+}
+
 static const struct sdhci_ops sdhci_bcm_kona_ops = {
 	.set_clock = sdhci_set_clock,
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
 	.get_timeout_clock = sdhci_pltfm_clk_get_max_clock,
 	.platform_send_init_74_clocks = sdhci_bcm_kona_init_74_clocks,
 	.set_bus_width = sdhci_set_bus_width,
-	.reset = sdhci_reset,
+	.reset = sdhci_bcm_kona_reset,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
 	.card_event = sdhci_bcm_kona_card_event,
 };
@@ -237,6 +258,14 @@ static int sdhci_bcm_kona_probe(struct platform_device *pdev)
 	ret = mmc_of_parse(host->mmc);
 	if (ret)
 		goto err_pltfm_free;
+
+	/*
+	 * Read SDHCI-specific DT properties (e.g. no-1-8-v) and translate
+	 * them to SDHCI quirks.  mmc_of_parse() only sets MMC-level caps;
+	 * sdhci_get_property() is needed for SDHCI_QUIRK2_NO_1_8_V and
+	 * other SDHCI-layer quirks that are not parsed by the MMC core.
+	 */
+	sdhci_get_property(pdev);
 
 	if (!host->mmc->f_max) {
 		dev_err(&pdev->dev, "Missing max-freq for SDHCI cfg\n");
