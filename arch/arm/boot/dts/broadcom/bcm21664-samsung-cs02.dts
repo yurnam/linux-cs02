@@ -461,7 +461,7 @@
 
 	status = "okay";
 
-	wifi@1 {
+	brcmf: wifi@1 {
 		compatible = "brcm,bcm4330-fmac", "brcm,bcm4329-fmac";
 		reg = <1>;
 
