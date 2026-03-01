@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Device tree for Samsung Galaxy Core 2 (SM-G355H, cs02 rev02).
+ *
+ * Copyright (c) 2025 The Linux Kernel Authors
+ */
+
+/dts-v1/;
+#include "bcm21664-samsung-kylepro-common.dtsi"
+
+/ {
+	model = "Samsung Galaxy Core 2 (SM-G355H)";
+	compatible = "samsung,cs02", "brcm,bcm21664";
+	chassis-type = "handset";
+};

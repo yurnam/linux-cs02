@@ -111,6 +111,7 @@ dtb-$(CONFIG_ARCH_BCM_HR2) += \
 dtb-$(CONFIG_ARCH_BCM_MOBILE) += \
 	bcm28155-ap.dtb \
 	bcm21664-garnet.dtb \
+	bcm21664-samsung-cs02.dtb \
 	bcm21664-samsung-kylepro.dtb \
 	bcm21664-samsung-kyleprods.dtb \
 	bcm23550-samsung-baffinlite.dtb \
