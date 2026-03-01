@@ -192,6 +192,17 @@ static const struct sdhci_pltfm_data sdhci_pltfm_data_kona = {
 		SDHCI_QUIRK_FORCE_BLK_SZ_2048 |
 		SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN |
 		SDHCI_QUIRK_BROKEN_DMA | SDHCI_QUIRK_BROKEN_ADMA,
+	/*
+	 * Preset values in the SDHCI registers are unreliable on kona (the
+	 * clock base is already broken per SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN).
+	 * If preset values are used for UHS modes the clock divider and drive
+	 * strength fields are read as garbage, causing the clock register to
+	 * be programmed to 0x7 (no divisor), which stalls the bus and makes
+	 * every SDHCI timeout take the full hardware timeout interval (tens of
+	 * seconds), freezing the whole system.  Disable preset value usage so
+	 * the driver always programs the clock divider explicitly.
+	 */
+	.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
 };
 
 static const struct of_device_id sdhci_bcm_kona_of_match[] = {
