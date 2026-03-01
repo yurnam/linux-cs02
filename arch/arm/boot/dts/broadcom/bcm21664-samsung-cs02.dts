@@ -456,8 +456,11 @@
 	pinctrl-0 = <&mmc1_width4_pins>;
 	pinctrl-names = "default";
 
+	bus-width = <4>;
 	keep-power-in-suspend;
 	non-removable;
+	no-sd;
+	no-mmc;
 
 	status = "okay";
 
