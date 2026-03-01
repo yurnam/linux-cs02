@@ -109,14 +109,14 @@
 	 * GPIO regulator for BCM4330 WiFi: GPIO 3 is the WL_REG_ON line.
 	 * GPIO 3 LOW = chip off/reset, HIGH = chip powered and operational.
 	 *
-	 * The voltage is advertised as 3.3 V so that the BCM21664 SDHCI3
-	 * host programs SDHCI_POWER_330 in its bus-power register.
-	 * BCM21664 SDHCI is unreliable in SDHCI_POWER_180 (1.8 V) mode
-	 * (the same reason the SD card slot carries no-1-8-v); 3.3 V mode
-	 * works reliably and is used by all other BCM21664 WiFi nodes
-	 * (e.g. bcm21664-samsung-kylepro-common.dtsi).  The actual SDIO3
-	 * I/O signal levels are determined by the board hardware, not by
-	 * this register.
+	 * The voltage is advertised as 3.3 V so that sdhci_set_power_noreg()
+	 * (called via the .set_power = sdhci_set_power_and_bus_voltage hook in
+	 * the kona SDHCI driver) programs SDHCI_POWER_330 into the controller's
+	 * bus-power register.  The downstream kona driver always wrote
+	 * SDHCI_POWER_330 | SDHCI_POWER_ON; omitting the voltage-select bits
+	 * (as the default sdhci_set_power_reg() does with an external regulator)
+	 * leaves BCM21664 SDHCI3 in an undefined bus-power state and it will
+	 * not drive CMD5, so the BCM4330 SDIO device is never enumerated.
 	 *
 	 * The 250 ms startup delay is taken from the downstream kernel's
 	 * __wifi_reset() and gives the BCM4330 time to initialise its

@@ -215,6 +215,19 @@ static const struct sdhci_ops sdhci_bcm_kona_ops = {
 	.platform_send_init_74_clocks = sdhci_bcm_kona_init_74_clocks,
 	.set_bus_width = sdhci_set_bus_width,
 	.reset = sdhci_bcm_kona_reset,
+	/*
+	 * The BCM21664 kona SDHCI requires the voltage-select bits in
+	 * SDHCI_POWER_CONTROL to be written alongside the SDHCI_POWER_ON bit.
+	 * When an external vmmc regulator is present the default
+	 * sdhci_set_power_reg() only writes SDHCI_POWER_ON (0x01), leaving
+	 * the voltage-select field as 0 (undefined).  The downstream kona
+	 * driver always writes SDHCI_POWER_330 | SDHCI_POWER_ON (0x0f); use
+	 * sdhci_set_power_and_bus_voltage() to match that behaviour: it
+	 * enables the vmmc regulator *and* calls sdhci_set_power_noreg() to
+	 * program the voltage-select bits, so the controller knows which bus
+	 * voltage to use and correctly drives CMD5 during WiFi SDIO enumeration.
+	 */
+	.set_power = sdhci_set_power_and_bus_voltage,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
 	.card_event = sdhci_bcm_kona_card_event,
 };
