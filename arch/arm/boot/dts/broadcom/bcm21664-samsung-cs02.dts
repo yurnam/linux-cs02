@@ -446,6 +446,12 @@
 		compatible = "brcm,bcm4330-fmac", "brcm,bcm4329-fmac";
 		reg = <1>;
 
+		/* brcmfmac looks for firmware at:
+		 *   /lib/firmware/brcm/brcmfmac4330-sdio.samsung,cs02.bin
+		 *   /lib/firmware/brcm/brcmfmac4330-sdio.samsung,cs02.txt
+		 */
+		brcm,board-type = "samsung,cs02";
+
 		interrupt-parent = <&gpio>;
 		interrupts = <74 IRQ_TYPE_EDGE_FALLING>;
 		interrupt-names = "host-wake";
