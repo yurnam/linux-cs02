@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Device tree for Samsung Galaxy Core 2 (SM-G355H, cs02 rev02).
+ * Device tree for Samsung Galaxy Core 2 (SM-G350, cs02 rev02).
  *
  * Copyright (c) 2025 The Linux Kernel Authors
  */
@@ -14,7 +14,7 @@
 #include "bcm21664.dtsi"
 
 / {
-	model = "Samsung Galaxy Core 2 (SM-G355H)";
+	model = "Samsung Galaxy Core 2 (SM-G350)";
 	compatible = "samsung,cs02", "brcm,bcm21664";
 	chassis-type = "handset";
 
@@ -219,15 +219,15 @@
 
 	status = "okay";
 
-	touchscreen@48 {
-		compatible = "melfas,mms136";
-		reg = <0x48>;
+	touchscreen@20 {
+		compatible = "zinitix,bt432";
+		reg = <0x20>;
 
 		interrupt-parent = <&gpio>;
 		interrupts = <73 IRQ_TYPE_EDGE_FALLING>;
 
-		vdd-supply = <&gpldo2_reg>;
-		avdd-supply = <&iosr1_reg>;
+		vcca-supply = <&gpldo2_reg>;
+		vdd-supply = <&iosr1_reg>;
 
 		touchscreen-size-x = <480>;
 		touchscreen-size-y = <800>;
