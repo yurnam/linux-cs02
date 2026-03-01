@@ -106,26 +106,20 @@
 	};
 
 	/*
-	 * GPIO regulator for WiFi: GPIO 3 is the BCM4330 WL_REG_ON line.
+	 * Power sequencer for BCM4330 WiFi: GPIO 3 is the WL_REG_ON line.
 	 * GPIO 3 LOW = chip off/reset, HIGH = chip powered and operational.
 	 *
-	 * The BCM4330's SDIO interface on BCM21664 runs at 1.8 V I/O voltage.
-	 * Advertising 1.8 V here causes the SDHCI host to program
-	 * SDHCI_POWER_180 in the bus-power register, which matches the actual
-	 * hardware signalling level and allows CMD5 to succeed.
-	 *
-	 * The 250 ms startup delay matches the downstream kernel's
-	 * __wifi_reset() delay and gives the BCM4330 time to initialise its
-	 * SDIO interface before the host starts bus enumeration.
+	 * mmc-pwrseq-simple drives logical-1 (pin LOW for ACTIVE_LOW) during
+	 * pre_power_on to hold the chip in reset, then logical-0 (pin HIGH)
+	 * during post_power_on to release reset and power the chip on.  The
+	 * 250 ms post-power-on delay matches the downstream __wifi_reset()
+	 * timing and gives the BCM4330 time to initialise its SDIO interface
+	 * before the host starts bus enumeration.
 	 */
-	wl_reg: regulator-gpio-wlan {
-		compatible = "regulator-fixed";
-		regulator-name = "WL_REG_ON";
-		regulator-min-microvolt = <1800000>;
-		regulator-max-microvolt = <1800000>;
-		startup-delay-us = <250000>;
-		gpio = <&gpio 3 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
+	wlan_pwrseq: wifi-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		reset-gpios = <&gpio 3 GPIO_ACTIVE_LOW>;
+		post-power-on-delay-ms = <250>;
 	};
 
 	/* Simple framebuffer for display output (bootloader-initialised NT35510) */
@@ -443,8 +437,7 @@
 &sdio3 {
 	max-frequency = <48000000>;
 
-	/* BCM4330 SDIO runs at 1.8 V I/O; vmmc-supply selects SDHCI_POWER_180 */
-	vmmc-supply = <&wl_reg>;
+	mmc-pwrseq = <&wlan_pwrseq>;
 
 	#address-cells = <1>;
 	#size-cells = <0>;
