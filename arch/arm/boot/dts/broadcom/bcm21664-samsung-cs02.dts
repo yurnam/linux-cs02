@@ -105,15 +105,16 @@
 		};
 	};
 
-	/* GPIO regulator for WiFi */
-	wl_reg: regulator-gpio-wlan {
-		compatible = "regulator-fixed";
-		regulator-name = "WL_REG_ON";
-		regulator-min-microvolt = <3000000>;
-		regulator-max-microvolt = <3000000>;
-		startup-delay-us = <100000>;
-		gpio = <&gpio 3 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
+	/*
+	 * WiFi power sequence: GPIO 3 is the BCM4330 reset line.
+	 * The chip is always powered; GPIO 3 LOW = in reset, HIGH = operational.
+	 * mmc-pwrseq-simple drives GPIO 3 LOW initially and releases it HIGH
+	 * after the SDIO host powers up, with 200ms stabilisation delay.
+	 */
+	wifi_pwrseq: wifi-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		reset-gpios = <&gpio 3 GPIO_ACTIVE_LOW>;
+		post-power-on-delay-ms = <200>;
 	};
 
 	/* Simple framebuffer for display output (bootloader-initialised NT35510) */
@@ -404,6 +405,9 @@
 	vmmc-supply = <&sdldo_reg>;
 	vqmmc-supply = <&sdxldo_reg>;
 
+	/* Disable UHS/DDR50 - kona SDHCI is unreliable in 1.8V modes */
+	no-1-8-v;
+
 	pinctrl-0 = <&sd_width4_pins>;
 	pinctrl-names = "default";
 
@@ -428,8 +432,7 @@
 &sdio3 {
 	max-frequency = <48000000>;
 
-	/* Actually a regulator for the WiFi chip */
-	vmmc-supply = <&wl_reg>;
+	mmc-pwrseq = <&wifi_pwrseq>;
 
 	#address-cells = <1>;
 	#size-cells = <0>;

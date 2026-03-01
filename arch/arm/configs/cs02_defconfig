@@ -31,7 +31,7 @@ CONFIG_VMSPLIT_3G=y
 CONFIG_ARM_APPENDED_DTB=y
 CONFIG_ARM_ATAG_DTB_COMPAT=y
 CONFIG_ARM_ATAG_DTB_COMPAT_CMDLINE_FROM_BOOTLOADER=y
-CONFIG_CMDLINE="mem=736M ignore_loglevel console=ttyS2,115200n8 console=tty0 root=/dev/mmcblk1p2 rootwait"
+CONFIG_CMDLINE="mem=736M ignore_loglevel console=ttyS2,115200n8 console=tty0 root=/dev/mmcblk1p2 rootwait rw"
 CONFIG_CMDLINE_FORCE=y
 
 # Modules
