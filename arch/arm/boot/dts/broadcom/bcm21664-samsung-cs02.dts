@@ -106,20 +106,30 @@
 	};
 
 	/*
-	 * Power sequencer for BCM4330 WiFi: GPIO 3 is the WL_REG_ON line.
+	 * GPIO regulator for BCM4330 WiFi: GPIO 3 is the WL_REG_ON line.
 	 * GPIO 3 LOW = chip off/reset, HIGH = chip powered and operational.
 	 *
-	 * mmc-pwrseq-simple drives logical-1 (pin LOW for ACTIVE_LOW) during
-	 * pre_power_on to hold the chip in reset, then logical-0 (pin HIGH)
-	 * during post_power_on to release reset and power the chip on.  The
-	 * 250 ms post-power-on delay matches the downstream __wifi_reset()
-	 * timing and gives the BCM4330 time to initialise its SDIO interface
-	 * before the host starts bus enumeration.
+	 * The voltage is advertised as 3.3 V so that the BCM21664 SDHCI3
+	 * host programs SDHCI_POWER_330 in its bus-power register.
+	 * BCM21664 SDHCI is unreliable in SDHCI_POWER_180 (1.8 V) mode
+	 * (the same reason the SD card slot carries no-1-8-v); 3.3 V mode
+	 * works reliably and is used by all other BCM21664 WiFi nodes
+	 * (e.g. bcm21664-samsung-kylepro-common.dtsi).  The actual SDIO3
+	 * I/O signal levels are determined by the board hardware, not by
+	 * this register.
+	 *
+	 * The 250 ms startup delay is taken from the downstream kernel's
+	 * __wifi_reset() and gives the BCM4330 time to initialise its
+	 * SDIO interface before the host starts bus enumeration.
 	 */
-	wlan_pwrseq: wifi-pwrseq {
-		compatible = "mmc-pwrseq-simple";
-		reset-gpios = <&gpio 3 GPIO_ACTIVE_LOW>;
-		post-power-on-delay-ms = <250>;
+	wl_reg: regulator-gpio-wlan {
+		compatible = "regulator-fixed";
+		regulator-name = "WL_REG_ON";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		startup-delay-us = <250000>;
+		gpio = <&gpio 3 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
 	};
 
 	/* Simple framebuffer for display output (bootloader-initialised NT35510) */
@@ -437,7 +447,8 @@
 &sdio3 {
 	max-frequency = <48000000>;
 
-	mmc-pwrseq = <&wlan_pwrseq>;
+	/* WL_REG_ON regulator; 3.3 V advertised so SDHCI uses SDHCI_POWER_330 */
+	vmmc-supply = <&wl_reg>;
 
 	#address-cells = <1>;
 	#size-cells = <0>;
