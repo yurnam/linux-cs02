@@ -106,15 +106,19 @@
 	};
 
 	/*
-	 * WiFi power sequence: GPIO 3 is the BCM4330 reset line.
-	 * The chip is always powered; GPIO 3 LOW = in reset, HIGH = operational.
-	 * mmc-pwrseq-simple drives GPIO 3 LOW initially and releases it HIGH
-	 * after the SDIO host powers up, with 200ms stabilisation delay.
+	 * GPIO regulator for WiFi: GPIO 3 is the BCM4330 WL_REG_ON line.
+	 * GPIO 3 LOW = chip off/reset, HIGH = chip powered and operational.
+	 * The 100 ms startup delay gives the BCM4330 time to initialise its
+	 * SDIO interface before the host starts bus enumeration.
 	 */
-	wifi_pwrseq: wifi-pwrseq {
-		compatible = "mmc-pwrseq-simple";
-		reset-gpios = <&gpio 3 GPIO_ACTIVE_LOW>;
-		post-power-on-delay-ms = <200>;
+	wl_reg: regulator-gpio-wlan {
+		compatible = "regulator-fixed";
+		regulator-name = "WL_REG_ON";
+		regulator-min-microvolt = <3000000>;
+		regulator-max-microvolt = <3000000>;
+		startup-delay-us = <100000>;
+		gpio = <&gpio 3 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
 	};
 
 	/* Simple framebuffer for display output (bootloader-initialised NT35510) */
@@ -432,7 +436,8 @@
 &sdio3 {
 	max-frequency = <48000000>;
 
-	mmc-pwrseq = <&wifi_pwrseq>;
+	/* WiFi chip power via GPIO 3 (WL_REG_ON) — chip initialises at 3 V */
+	vmmc-supply = <&wl_reg>;
 
 	#address-cells = <1>;
 	#size-cells = <0>;
