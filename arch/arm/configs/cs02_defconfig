@@ -502,7 +502,7 @@ CONFIG_ARM_APPENDED_DTB=y
 CONFIG_ARM_ATAG_DTB_COMPAT=y
 CONFIG_ARM_ATAG_DTB_COMPAT_CMDLINE_FROM_BOOTLOADER=y
 # CONFIG_ARM_ATAG_DTB_COMPAT_CMDLINE_EXTEND is not set
-CONFIG_CMDLINE="mem=736M ignore_loglevel loglevel=8 console=ttyS2,115200n8 console=tty0 root=/dev/mmcblk1p2 rootwait rw dyndbg=\"module brcmfmac +p; module sdhci +p; module sdhci_bcm_kona +p; module mmc_core +p; module pwrseq_simple +p\""
+CONFIG_CMDLINE="mem=736M ignore_loglevel loglevel=8 console=ttyS2,115200n8 console=tty0 root=/dev/mmcblk1p2 rootwait rw dyndbg=\"module brcmfmac +p; module sdhci_bcm_kona +p; file drivers/mmc/core/sdio.c +p; file drivers/mmc/core/sdio_irq.c +p; module pwrseq_simple +p\""
 # CONFIG_CMDLINE_FROM_BOOTLOADER is not set
 # CONFIG_CMDLINE_EXTEND is not set
 CONFIG_CMDLINE_FORCE=y
@@ -2830,7 +2830,7 @@ CONFIG_MMC_BLOCK_MINORS=32
 #
 # MMC/SD/SDIO Host Controller Drivers
 #
-CONFIG_MMC_DEBUG=y
+# CONFIG_MMC_DEBUG is not set
 CONFIG_MMC_SDHCI=y
 CONFIG_MMC_SDHCI_PLTFM=y
 # CONFIG_MMC_SDHCI_OF_ARASAN is not set

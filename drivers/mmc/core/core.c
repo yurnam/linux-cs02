@@ -122,8 +122,8 @@ void mmc_command_done(struct mmc_host *host, struct mmc_request *mrq)
 
 	mmc_complete_cmd(mrq);
 
-	pr_debug("%s: cmd done, tfr ongoing (CMD%u)\n",
-		 mmc_hostname(host), mrq->cmd->opcode);
+	dev_dbg(mmc_dev(host), "cmd done, tfr ongoing (CMD%u)\n",
+		mrq->cmd->opcode);
 }
 EXPORT_SYMBOL(mmc_command_done);
 
@@ -176,27 +176,26 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 			led_trigger_event(host->led, LED_OFF);
 
 		if (mrq->sbc) {
-			pr_debug("%s: req done <CMD%u>: %d: %08x %08x %08x %08x\n",
-				mmc_hostname(host), mrq->sbc->opcode,
+			dev_dbg(mmc_dev(host), "req done <CMD%u>: %d: %08x %08x %08x %08x\n",
+				mrq->sbc->opcode,
 				mrq->sbc->error,
 				mrq->sbc->resp[0], mrq->sbc->resp[1],
 				mrq->sbc->resp[2], mrq->sbc->resp[3]);
 		}
 
-		pr_debug("%s: req done (CMD%u): %d: %08x %08x %08x %08x\n",
-			mmc_hostname(host), cmd->opcode, err,
+		dev_dbg(mmc_dev(host), "req done (CMD%u): %d: %08x %08x %08x %08x\n",
+			cmd->opcode, err,
 			cmd->resp[0], cmd->resp[1],
 			cmd->resp[2], cmd->resp[3]);
 
 		if (mrq->data) {
-			pr_debug("%s:     %d bytes transferred: %d\n",
-				mmc_hostname(host),
+			dev_dbg(mmc_dev(host), "    %d bytes transferred: %d\n",
 				mrq->data->bytes_xfered, mrq->data->error);
 		}
 
 		if (mrq->stop) {
-			pr_debug("%s:     (CMD%u): %d: %08x %08x %08x %08x\n",
-				mmc_hostname(host), mrq->stop->opcode,
+			dev_dbg(mmc_dev(host), "    (CMD%u): %d: %08x %08x %08x %08x\n",
+				mrq->stop->opcode,
 				mrq->stop->error,
 				mrq->stop->resp[0], mrq->stop->resp[1],
 				mrq->stop->resp[2], mrq->stop->resp[3]);
@@ -264,33 +263,33 @@ static void mmc_mrq_pr_debug(struct mmc_host *host, struct mmc_request *mrq,
 			     bool cqe)
 {
 	if (mrq->sbc) {
-		pr_debug("<%s: starting CMD%u arg %08x flags %08x>\n",
-			 mmc_hostname(host), mrq->sbc->opcode,
-			 mrq->sbc->arg, mrq->sbc->flags);
+		dev_dbg(mmc_dev(host), "<starting CMD%u arg %08x flags %08x>\n",
+			mrq->sbc->opcode,
+			mrq->sbc->arg, mrq->sbc->flags);
 	}
 
 	if (mrq->cmd) {
-		pr_debug("%s: starting %sCMD%u arg %08x flags %08x\n",
-			 mmc_hostname(host), cqe ? "CQE direct " : "",
-			 mrq->cmd->opcode, mrq->cmd->arg, mrq->cmd->flags);
+		dev_dbg(mmc_dev(host), "starting %sCMD%u arg %08x flags %08x\n",
+			cqe ? "CQE direct " : "",
+			mrq->cmd->opcode, mrq->cmd->arg, mrq->cmd->flags);
 	} else if (cqe) {
-		pr_debug("%s: starting CQE transfer for tag %d blkaddr %u\n",
-			 mmc_hostname(host), mrq->tag, mrq->data->blk_addr);
+		dev_dbg(mmc_dev(host), "starting CQE transfer for tag %d blkaddr %u\n",
+			mrq->tag, mrq->data->blk_addr);
 	}
 
 	if (mrq->data) {
-		pr_debug("%s:     blksz %d blocks %d flags %08x "
-			"tsac %d ms nsac %d\n",
-			mmc_hostname(host), mrq->data->blksz,
+		dev_dbg(mmc_dev(host),
+			"    blksz %d blocks %d flags %08x tsac %d ms nsac %d\n",
+			mrq->data->blksz,
 			mrq->data->blocks, mrq->data->flags,
 			mrq->data->timeout_ns / 1000000,
 			mrq->data->timeout_clks);
 	}
 
 	if (mrq->stop) {
-		pr_debug("%s:     CMD%u arg %08x flags %08x\n",
-			 mmc_hostname(host), mrq->stop->opcode,
-			 mrq->stop->arg, mrq->stop->flags);
+		dev_dbg(mmc_dev(host), "    CMD%u arg %08x flags %08x\n",
+			mrq->stop->opcode,
+			mrq->stop->arg, mrq->stop->flags);
 	}
 }
 
@@ -414,8 +413,8 @@ void mmc_wait_for_req_done(struct mmc_host *host, struct mmc_request *mrq)
 
 		mmc_retune_recheck(host);
 
-		pr_debug("%s: req failed (CMD%u): %d, retrying...\n",
-			 mmc_hostname(host), cmd->opcode, cmd->error);
+		dev_dbg(mmc_dev(host), "req failed (CMD%u): %d, retrying...\n",
+			 cmd->opcode, cmd->error);
 		cmd->retries--;
 		cmd->error = 0;
 		__mmc_start_request(host, mrq);
