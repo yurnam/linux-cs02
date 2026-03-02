@@ -461,6 +461,13 @@
 	non-removable;
 	no-sd;
 	no-mmc;
+	/*
+	 * Give the BCM4330 extra time after the regulator startup delay to
+	 * fully initialise its SDIO interface before CMD5 is issued.
+	 * mmc_power_up() waits this many milliseconds twice (before and after
+	 * enabling the clock), so the total extra settling time is 2 × 150 ms.
+	 */
+	post-power-on-delay-ms = <150>;
 
 	status = "okay";
 
