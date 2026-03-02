@@ -234,12 +234,19 @@ static const struct sdhci_ops sdhci_bcm_kona_ops = {
 
 static const struct sdhci_pltfm_data sdhci_pltfm_data_kona = {
 	.ops    = &sdhci_bcm_kona_ops,
+	/*
+	 * SDHCI_QUIRK_32BIT_DMA_ADDR / _SIZE / _ADMA_SIZE are required
+	 * because the BCM21664 DMA engine only handles 32-bit-aligned
+	 * addresses and lengths.  BROKEN_DMA and BROKEN_ADMA are intentionally
+	 * absent: the downstream kona driver used ADMA2 (bit 23 of the
+	 * capabilities register is set) without issues, and PIO mode is far
+	 * too slow for WiFi SDIO traffic.
+	 */
 	.quirks = SDHCI_QUIRK_NO_CARD_NO_RESET |
 		SDHCI_QUIRK_BROKEN_TIMEOUT_VAL | SDHCI_QUIRK_32BIT_DMA_ADDR |
 		SDHCI_QUIRK_32BIT_DMA_SIZE | SDHCI_QUIRK_32BIT_ADMA_SIZE |
 		SDHCI_QUIRK_FORCE_BLK_SZ_2048 |
-		SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN |
-		SDHCI_QUIRK_BROKEN_DMA | SDHCI_QUIRK_BROKEN_ADMA,
+		SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN,
 	/*
 	 * Preset values in the SDHCI registers are unreliable on kona (the
 	 * clock base is already broken per SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN).
