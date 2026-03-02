@@ -118,18 +118,33 @@
 	 * leaves BCM21664 SDHCI3 in an undefined bus-power state and it will
 	 * not drive CMD5, so the BCM4330 SDIO device is never enumerated.
 	 *
-	 * The 250 ms startup delay is taken from the downstream kernel's
-	 * __wifi_reset() and gives the BCM4330 time to initialise its
-	 * SDIO interface before the host starts bus enumeration.
+	 * WL_REG_ON (GPIO 3) is kept out of this regulator so that the sdio3
+	 * controller does not take a deferred-probe dependency on a GPIO
+	 * regulator.  A deferred probe would cause sdio3 to bind after
+	 * clk_disable_unused() has already gated the SDIO3 clock; re-enabling
+	 * that clock after clk_disable_unused() does not restore proper
+	 * operation on BCM21664, so CMD5 is never successfully driven.
+	 * GPIO 3 is instead managed by wifi_pwrseq below.
 	 */
-	wl_reg: regulator-gpio-wlan {
+	wl_reg: regulator-wlan {
 		compatible = "regulator-fixed";
 		regulator-name = "WL_REG_ON";
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
-		startup-delay-us = <250000>;
-		gpio = <&gpio 3 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
+		regulator-always-on;
+	};
+
+	/*
+	 * mmc-pwrseq-simple for the BCM4330 WiFi chip.  It drives WL_REG_ON
+	 * (GPIO 3) low before the SDHCI bus is powered and then releases it
+	 * high after bus power is applied, giving the chip a clean
+	 * low-to-high transition on every mmc_power_up() cycle.  The 250 ms
+	 * post-power-on delay matches the downstream kernel's __wifi_reset().
+	 */
+	wifi_pwrseq: wifi-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		reset-gpios = <&gpio 3 GPIO_ACTIVE_LOW>;
+		post-power-on-delay-ms = <250>;
 	};
 
 	/* Simple framebuffer for display output (bootloader-initialised NT35510) */
@@ -449,6 +464,8 @@
 
 	/* WL_REG_ON regulator; 3.3 V advertised so SDHCI uses SDHCI_POWER_330 */
 	vmmc-supply = <&wl_reg>;
+	/* GPIO 3 (WL_REG_ON) is toggled by wifi_pwrseq on every power cycle */
+	mmc-pwrseq = <&wifi_pwrseq>;
 
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -461,13 +478,6 @@
 	non-removable;
 	no-sd;
 	no-mmc;
-	/*
-	 * Give the BCM4330 extra time after the regulator startup delay to
-	 * fully initialise its SDIO interface before CMD5 is issued.
-	 * mmc_power_up() waits this many milliseconds twice (before and after
-	 * enabling the clock), so the total extra settling time is 2 × 150 ms.
-	 */
-	post-power-on-delay-ms = <150>;
 
 	status = "okay";
 
