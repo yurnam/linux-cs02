@@ -106,48 +106,34 @@
 	};
 
 	/*
-	 * Fixed 3.3 V supply for the SDIO3 bus.  Advertising 3.3 V causes
-	 * sdhci_set_power_noreg() (called via .set_power =
-	 * sdhci_set_power_and_bus_voltage in the kona SDHCI driver) to write
-	 * SDHCI_POWER_330 | SDHCI_POWER_ON into the bus-power register.
-	 * The downstream kona driver always wrote that value; omitting the
-	 * voltage-select bits leaves BCM21664 SDHCI3 in an undefined bus-power
-	 * state where it will not drive CMD5, so the BCM4330 is never found.
+	 * GPIO regulator for the BCM4330 WiFi chip (WL_REG_ON on GPIO 3).
 	 *
-	 * This regulator is always-on (no GPIO) so that the SDHCI bus is
-	 * powered before WL_REG_ON is asserted.  The BCM4330 requires SDIO
-	 * bus power to be present when it initializes its SDIO interface;
-	 * if WL_REG_ON goes HIGH before the bus is powered the chip's SDIO
-	 * I/O cells do not latch correctly and CMD5 times out.  WL_REG_ON
-	 * is instead sequenced by wifi_pwrseq below.
-	 */
-	wl_reg: regulator-wlan {
-		compatible = "regulator-fixed";
-		regulator-name = "WL_REG_ON";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		regulator-always-on;
-	};
-
-	/*
-	 * mmc-pwrseq-simple for the BCM4330 WiFi chip.
+	 * Advertising 3.3 V causes sdhci_set_power_noreg() (called via
+	 * .set_power = sdhci_set_power_and_bus_voltage in the kona SDHCI
+	 * driver) to write SDHCI_POWER_330 | SDHCI_POWER_ON into the
+	 * bus-power register.  Omitting the voltage-select bits leaves
+	 * BCM21664 SDHCI3 in an undefined bus-power state where it will not
+	 * drive CMD5, so the BCM4330 is never found.
 	 *
-	 * reset-gpios is ACTIVE_LOW so that the pwrseq driver drives GPIO 3
-	 * LOW (chip held in reset) during probe, then releases it HIGH (chip
-	 * powered and running) inside mmc_pwrseq_post_power_on() — which is
-	 * called after the SDIO bus is powered — and waits 250 ms.  This
-	 * matches the downstream __wifi_reset() timing and guarantees the
-	 * correct bus-power → WL_REG_ON → delay → CMD5 sequence.
+	 * Using a GPIO regulator for vmmc (same as the bcm21664-samsung-kylepro
+	 * sibling board) lets mmc_regulator_set_ocr() assert WL_REG_ON and
+	 * wait 150 ms inside regulator_enable() before sdhci_set_power_noreg()
+	 * programs the bus-power register.  The BCM4330 has enough time to
+	 * complete its internal boot-ROM before the SDHCI clock starts.
 	 *
 	 * The kona peripheral clock driver marks all SDIO clocks
 	 * CLK_IGNORE_UNUSED, so clk_disable_unused() never gates the SDIO3
 	 * clock even if the controller's probe is deferred until after
 	 * late_initcall().
 	 */
-	wifi_pwrseq: wifi-pwrseq {
-		compatible = "mmc-pwrseq-simple";
-		reset-gpios = <&gpio 3 GPIO_ACTIVE_LOW>;
-		post-power-on-delay-ms = <250>;
+	wl_reg: regulator-wlan {
+		compatible = "regulator-fixed";
+		regulator-name = "WL_REG_ON";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		startup-delay-us = <150000>;
+		gpio = <&gpio 3 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
 	};
 
 	/* Simple framebuffer for display output (bootloader-initialized NT35510) */
@@ -467,8 +453,6 @@
 
 	/* WL_REG_ON regulator; 3.3 V advertised so SDHCI uses SDHCI_POWER_330 */
 	vmmc-supply = <&wl_reg>;
-	/* GPIO 3 (WL_REG_ON) sequenced by wifi_pwrseq after bus power is on */
-	mmc-pwrseq = <&wifi_pwrseq>;
 
 	#address-cells = <1>;
 	#size-cells = <0>;
