@@ -109,10 +109,13 @@
 	 * GPIO regulator for WiFi: GPIO 3 is the BCM4330 WL_REG_ON line.
 	 * GPIO 3 LOW = chip off/reset, HIGH = chip powered and operational.
 	 *
-	 * The BCM4330's SDIO interface on BCM21664 runs at 1.8 V I/O voltage.
-	 * Advertising 1.8 V here causes the SDHCI host to program
-	 * SDHCI_POWER_180 in the bus-power register, which matches the actual
-	 * hardware signalling level and allows CMD5 to succeed.
+	 * Advertising 3.3 V here causes sdhci_set_power_and_bus_voltage() to
+	 * write SDHCI_POWER_330 | SDHCI_POWER_ON (0x0f) into the BCM21664
+	 * SDHCI bus-power register, matching the value the downstream kona
+	 * driver always programmed.  The BCM21664 SDHCI3 controller requires
+	 * this value to properly enable its CMD/CLK/DAT drivers; without it
+	 * the bus stays powered off and the controller refuses to drive CMD5,
+	 * so the BCM4330 SDIO device is never enumerated.
 	 *
 	 * The 250 ms startup delay matches the downstream kernel's
 	 * __wifi_reset() delay and gives the BCM4330 time to initialise its
@@ -121,14 +124,14 @@
 	wl_reg: regulator-gpio-wlan {
 		compatible = "regulator-fixed";
 		regulator-name = "WL_REG_ON";
-		regulator-min-microvolt = <1800000>;
-		regulator-max-microvolt = <1800000>;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
 		startup-delay-us = <250000>;
 		gpio = <&gpio 3 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 	};
 
-	/* Simple framebuffer for display output (bootloader-initialised NT35510) */
+	/* Simple framebuffer for display output (bootloader-initialized NT35510) */
 	framebuffer@ae980000 {
 		compatible = "simple-framebuffer";
 		reg = <0xae980000 (480 * 800 * 4)>;
@@ -443,7 +446,7 @@
 &sdio3 {
 	max-frequency = <48000000>;
 
-	/* BCM4330 SDIO runs at 1.8 V I/O; vmmc-supply selects SDHCI_POWER_180 */
+	/* WL_REG_ON regulator; 3.3 V causes SDHCI to write SDHCI_POWER_330 */
 	vmmc-supply = <&wl_reg>;
 
 	#address-cells = <1>;
@@ -457,7 +460,7 @@
 
 	status = "okay";
 
-	wifi@1 {
+	brcmf: wifi@1 {
 		compatible = "brcm,bcm4330-fmac", "brcm,bcm4329-fmac";
 		reg = <1>;
 

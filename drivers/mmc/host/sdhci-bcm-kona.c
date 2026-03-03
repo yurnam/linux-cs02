@@ -215,18 +215,40 @@ static const struct sdhci_ops sdhci_bcm_kona_ops = {
 	.platform_send_init_74_clocks = sdhci_bcm_kona_init_74_clocks,
 	.set_bus_width = sdhci_set_bus_width,
 	.reset = sdhci_bcm_kona_reset,
+	/*
+	 * The BCM21664 kona SDHCI requires the voltage-select bits in
+	 * SDHCI_POWER_CONTROL to be written alongside the SDHCI_POWER_ON bit.
+	 * When an external vmmc regulator is present the default
+	 * sdhci_set_power_reg() only writes SDHCI_POWER_ON (0x01), leaving
+	 * the voltage-select field as 0 (undefined).  The downstream kona
+	 * driver always writes SDHCI_POWER_330 | SDHCI_POWER_ON (0x0f); use
+	 * sdhci_set_power_and_bus_voltage() to match that behaviour: it
+	 * enables the vmmc regulator *and* calls sdhci_set_power_noreg() to
+	 * program the voltage-select bits, so the controller knows which bus
+	 * voltage to use and correctly drives CMD5 during WiFi SDIO enumeration.
+	 */
+	.set_power = sdhci_set_power_and_bus_voltage,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
 	.card_event = sdhci_bcm_kona_card_event,
 };
 
 static const struct sdhci_pltfm_data sdhci_pltfm_data_kona = {
 	.ops    = &sdhci_bcm_kona_ops,
+	/*
+	 * SDHCI_QUIRK_32BIT_DMA_ADDR / _SIZE / _ADMA_SIZE are required
+	 * because the BCM21664 DMA engine only handles 32-bit-aligned
+	 * addresses and lengths.  BROKEN_DMA and BROKEN_ADMA are also
+	 * required: without them ADMA2 produces data corruption (the SD card
+	 * SCR register is read back as garbage, giving "unrecognised SCR
+	 * structure version" and "invalid bus width" errors, and the eMMC
+	 * reports 0 B capacity).  PIO mode is used instead.
+	 */
 	.quirks = SDHCI_QUIRK_NO_CARD_NO_RESET |
 		SDHCI_QUIRK_BROKEN_TIMEOUT_VAL | SDHCI_QUIRK_32BIT_DMA_ADDR |
 		SDHCI_QUIRK_32BIT_DMA_SIZE | SDHCI_QUIRK_32BIT_ADMA_SIZE |
+		SDHCI_QUIRK_BROKEN_DMA | SDHCI_QUIRK_BROKEN_ADMA |
 		SDHCI_QUIRK_FORCE_BLK_SZ_2048 |
-		SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN |
-		SDHCI_QUIRK_BROKEN_DMA | SDHCI_QUIRK_BROKEN_ADMA,
+		SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN,
 	/*
 	 * Preset values in the SDHCI registers are unreliable on kona (the
 	 * clock base is already broken per SDHCI_QUIRK_CAP_CLOCK_BASE_BROKEN).
